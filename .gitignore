@@ -1,0 +1,11 @@
+Data/raw/
+Data/processed/
+*.geojson
+*.pkl
+.venv/
+.env
+__pycache__/
+cache/
+.structureignore/
+structure.md
+.env

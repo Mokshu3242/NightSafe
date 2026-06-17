@@ -1,0 +1,4 @@
+.venv
+.structureignore
+Docs/
+structure.md
