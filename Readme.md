@@ -73,8 +73,7 @@ from help, pole density.
 
 ## Data sources
 
-All public. Download into `Data/raw/` (also mirrored on Google Drive — see link
-in the submission).
+All public. Download into `Data/raw/` (also mirrored on Google Drive — https://drive.google.com/drive/folders/1OQntLM_ac7X8NBTJKDf0l7CoWN5IJ8Fv).
 
 - Philadelphia crime incidents 2022–2026 — OpenDataPhilly
 - Street poles (lighting proxy) — OpenDataPhilly
