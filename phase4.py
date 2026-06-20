@@ -1,29 +1,15 @@
+#!/usr/bin/env python3
 """
-Phase 4: SHAP explainability for NightSafe, with plain-language summaries.
-
-SHAP for every street (fast, deterministic), saved immediately.
-
-This version explains EVERY street (all severity levels). With ~4,000 streets
-that is ~4,000 calls, so it may take a while and could hit the free-tier daily
-limit. That is fine: if it stops, just run the script again and it resumes.
-
-DESIGN RULE: SHAP computes the real reasons. The LLM only rewrites them, using
-only the model's own factors, adding nothing.
-
-Setup:
-  - pip install shap python-dotenv
-  - put CLOUDFLARE_ACCOUNT_ID and CLOUDFLARE_AUTH_TOKEN in a .env file
+Phase 4: SHAP explainability for NightSafe
+Computes SHAP values and generates plain-language explanations for every street
 """
 
 import os
-import time
 import pandas as pd
 import numpy as np
 import joblib
-import requests
 import warnings
 warnings.filterwarnings('ignore')
-
 
 DATA_PROCESSED = 'Data/processed'
 REASONS_CSV = DATA_PROCESSED + '/shap_reasons_by_street.csv'
@@ -50,10 +36,6 @@ friendly = {
     'has_traffic_data': 'monitored-road status',
 }
 
-
-# ======================================================================
-# SHAP for every street
-# ======================================================================
 print("Loading model and data")
 rf = joblib.load(DATA_PROCESSED + '/model_random_forest.pkl')
 df = pd.read_csv(DATA_PROCESSED + '/corridor_forecast.csv')
@@ -66,32 +48,33 @@ for col in feature_columns:
 try:
     import shap
 except ImportError:
-    raise SystemExit("SHAP is not installed. Run: pip install shap")
+    raise SystemExit("SHAP not installed. Run: pip install shap")
 
 print("Computing SHAP values")
 explainer = shap.TreeExplainer(rf)
 
+# Global importance
 sample = X.sample(min(2000, len(X)), random_state=42)
 shap_sample = explainer.shap_values(sample)
 global_imp = pd.DataFrame({
     'feature': feature_columns,
     'mean_abs_shap': np.abs(shap_sample).mean(axis=0)
 }).sort_values('mean_abs_shap', ascending=False)
-print("")
-print("Global SHAP importance:")
+
+print("\nGlobal SHAP importance:")
 print(global_imp.to_string(index=False))
 global_imp.to_csv(DATA_PROCESSED + '/shap_global_importance.csv', index=False)
 
-print("")
-print("Computing per-segment SHAP reasons")
+# Per-segment explanations
+print("\nComputing per-segment SHAP reasons")
 all_shap = explainer.shap_values(X)
 
 def top_reasons_for_row(shap_row):
     pairs = sorted(zip(feature_columns, shap_row), key=lambda p: abs(p[1]), reverse=True)
     parts = []
     for feat, val in pairs[:3]:
-        direction = "raised" if val > 0 else "lowered"
-        parts.append(friendly.get(feat, feat) + " " + direction + " the risk")
+        direction = "raises" if val > 0 else "lowers"
+        parts.append(f"{friendly.get(feat, feat)} {direction} risk")
     return "; ".join(parts)
 
 df_reasons = df[['name', 'risk_index', 'severity']].copy()
@@ -107,15 +90,13 @@ def plain_fallback(reason_text):
         return "This corridor's risk reflects its overall street characteristics."
     return "This corridor scored as it did because " + str(reason_text) + "."
 
-# Reuse explanations from a previous run if present (so we don't redo calls).
+# Reuse previous explanations if available
 prev_expl = {}
 if os.path.exists(REASONS_CSV):
     prev = pd.read_csv(REASONS_CSV)
     if 'explanation' in prev.columns:
         prev_expl = dict(zip(prev['name'].astype(str), prev['explanation'].astype(str)))
 
-# Build the columns explicitly as object (string) dtype to avoid the float
-# column error when assigning text.
 explanation_col = []
 for _, row in streets.iterrows():
     nm = str(row['name'])
@@ -125,10 +106,6 @@ for _, row in streets.iterrows():
         explanation_col.append(plain_fallback(row['reason']))
 
 streets['explanation'] = pd.Series(explanation_col, dtype='object')
-
 streets[['name', 'reason', 'explanation']].to_csv(REASONS_CSV, index=False)
-print("Stage A done. Saved SHAP reasons for " + str(len(streets)) + " streets.")
 
-print("")
-print("Saved " + REASONS_CSV)
-print("Phase 4 complete")
+print(f"\nSaved explanations for {len(streets):,} streets")
